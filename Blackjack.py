@@ -13,6 +13,7 @@ class Deck:
         self.deck = []
 
     def fill_deck(self):
+        """Load deck with 6 decks of cards"""
         for i in range(0, 6):
             for suit in Deck.suits:
                 for value in Deck.values:
@@ -70,6 +71,7 @@ class Dealer:
         self.ace_count = 0
 
     def show_hand(self, showall=False):
+        """Prints out the dealers hand, pass showall=True to show all cards else only shows 1st card"""
         print("\nDealer's Hand:")
         if showall:
             for n, card in enumerate(self.hand):
@@ -88,15 +90,16 @@ class Game:
 
     def deal(self):
         print(f"{len(self.deck.deck)} cards in Deck")
-        if len(self.deck.deck) < 104:
+        if len(self.deck.deck) < 104:  # When stack gets to total of 2 card decks remaining, reshuffle 6 decks
             print("Reshuffling decks...")
             self.deck.clear_deck()
             self.deck.fill_deck()
+            self.deck.shuffle()
             time.sleep(4)
         for i in range(2):
             for player in self.players:
                 card = self.deck.deck.pop()
-                if "Ace" in card.value:
+                if "Ace" in card.value:  # Ace counter used for calculating value of Ace as 1 or 11
                     player.ace_count += 1
                 player.hand.append(card)
                 self.add_points(player, card)
@@ -130,6 +133,7 @@ class Game:
             self.players_turn = False
 
     def checkbust(self, player):
+        """Checks for bust if handscore over 21, presence of ace reduces by 10, ace count allows for multiple aces"""
         if player.ace_count > 0 and player.handscore > 21:
             player.handscore -= 10
             player.ace_count -= 1
