@@ -3,6 +3,7 @@
 
 import random
 import time
+import itertools
 
 
 class Deck:
@@ -10,20 +11,22 @@ class Deck:
     values = ["2", "3", "4", "5", "6", "7", "8", "9", "10", "Jack", "Queen", "King", "Ace"]
 
     def __init__(self):
-        self.deck = []
+        self.cards = []
+
+    def __len__(self):
+        return len(self.cards)
 
     def fill_deck(self):
         """Load deck with 6 decks of cards"""
         for i in range(0, 6):
-            for suit in Deck.suits:
-                for value in Deck.values:
-                    self.deck.append(Card(suit, value))
+            for suit, value in itertools.product(self.suits, self.values):
+                self.cards.append(Card(suit, value))
 
     def clear_deck(self):
-        self.deck = []
+        self.cards = []
 
     def shuffle(self):
-        return random.shuffle(self.deck)
+        random.shuffle(self.cards)
 
 
 class Card:
@@ -31,17 +34,57 @@ class Card:
         self.suit = suit
         self.value = value
 
-    def __repr__(self):
+    def __str__(self):
         return f"{self.value} of {self.suit}"
+
+    @property
+    def cardscore(self):
+        if self.value in ["Jack", "Queen", "King"]:
+            return 10
+        if self.value in ["2", "3", "4", "5", "6", "7", "8", "9", "10"]:
+            return int(self.value)
+        if self.value == "Ace":
+            return 1
 
 
 class Player:
-    def __init__(self, chips):
+    def __init__(self):
         self.hand = []
+
+    def show_hand(self):
+        print("\nPlayers Hand:")
+        for n, card in enumerate(self.hand):
+            print(str(self.hand[n]))
+        print()
+
+    def reset(self):
+        self.hand = []
+
+    @property
+    def ace_count(self):
+        return len([c for c in self.hand if c.value == "Ace"])
+
+    @property
+    def handscore(self):
+        return sum([c.cardscore for c in self.hand])
+
+    @property
+    def handscore_ace_adjusted(self):
+        for ace in range(self.ace_count):
+            if self.handscore < 12:
+                self.handscore += 10
+        return self.handscore
+
+    @property
+    def isbusted(self):
+        if self.handscore_ace_adjusted > 21:
+            return True
+
+
+class Human(Player):
+    def __init__(self, chips):
+        super().__init__()
         self.chips = chips
-        self.handscore = 0
-        self.isbusted = False
-        self.ace_count = 0
 
     def place_bet(self):
         bet = input(f"\nYou have {self.chips} chips. \nHow much would you like to bet?: ")
@@ -56,19 +99,11 @@ class Player:
             print("That is not a valid bet entry.")
             self.place_bet()
 
-    def show_hand(self):
-        print("\nPlayers Hand:")
-        for n, card in enumerate(self.hand):
-            print(str(self.hand[n]))
-        print()
 
-
-class Dealer:
+class Dealer(Player):
     def __init__(self):
+        super().__init__()
         self.hand = []
-        self.handscore = 0
-        self.isbusted = False
-        self.ace_count = 0
 
     def show_hand(self, showall=False):
         """Prints out the dealers hand, pass showall=True to show all cards else only shows 1st card"""
@@ -82,15 +117,15 @@ class Dealer:
 
 
 class Game:
-    def __init__(self, players, deck):
-        self.players = players
-        self.deck = deck
+    def __init__(self):
+        self.players = []
+        self.deck = []
         self.playerbet = 0
         self.players_turn = True
 
     def deal(self):
-        print(f"{len(self.deck.deck)} cards in Deck")
-        if len(self.deck.deck) < 104:  # When stack gets to total of 2 card decks remaining, reshuffle 6 decks
+        print(f"{len(self.deck)} cards in Deck")
+        if len(self.deck) < 104:  # When stack gets to total of 2 card decks remaining, reshuffle 6 decks
             print("Reshuffling decks...")
             self.deck.clear_deck()
             self.deck.fill_deck()
@@ -98,54 +133,35 @@ class Game:
             time.sleep(4)
         for i in range(2):
             for player in self.players:
-                card = self.deck.deck.pop()
-                if "Ace" in card.value:  # Ace counter used for calculating value of Ace as 1 or 11
-                    player.ace_count += 1
+                card = self.deck.cards.pop()
                 player.hand.append(card)
-                self.add_points(player, card)
-
-    def add_points(self, player, card):
-        if card.value in ["Jack", "Queen", "King"]:
-            player.handscore += 10
-        if card.value in ["2", "3", "4", "5", "6", "7", "8", "9", "10"]:
-            player.handscore += int(card.value)
-        if card.value == "Ace":
-            player.handscore += 11
 
     def hit(self, player):
-        card = self.deck.deck.pop()
+        card = self.deck.cards.pop()
         player.hand.append(card)
-        if "Ace" in card.value:
-            player.ace_count += 1
         if isinstance(player, Dealer):
             player.show_hand(True)
         else:
             player.show_hand()
-        self.add_points(player, card)
         self.checkbust(player)
+        print(f"player handscore is {player.handscore_ace_adjusted}")
 
     def playerchoice(self, player):
         answer = input("Hit or Stick? H/S: ")
         if answer.lower() == "h":
             self.hit(player)
         if answer.lower() == "s":
-            print(f"Player Sticks with hand of {str(player.handscore)}\n")
+            print(f"Player Sticks with hand of {str(player.handscore_ace_adjusted)}\n")
             self.players_turn = False
 
     def checkbust(self, player):
-        """Checks for bust if handscore over 21, presence of ace reduces by 10, ace count allows for multiple aces"""
-        if player.ace_count > 0 and player.handscore > 21:
-            player.handscore -= 10
-            player.ace_count -= 1
-        if player.handscore > 21:
-            if isinstance(player, Player):
+        if player.isbusted:
+            if isinstance(player, Human):
                 print("Player Busts!")
                 self.players_turn = False
-                player.isbusted = True
                 self.playerlose()
             if isinstance(player, Dealer):
                 print("\nDealer Busts!")
-                player.isbusted = True
 
     def playerwin(self, player):
         print(f"You win! \n{str(2 * self.playerbet)} chips added to your total.")
@@ -160,19 +176,16 @@ class Game:
         player.chips += self.playerbet
 
     def comparescores(self, player, dealer):
-        if player.handscore > dealer.handscore:
+        if player.handscore_ace_adjusted > dealer.handscore_ace_adjusted:
             self.playerwin(player)
-        if player.handscore == dealer.handscore:
+        if player.handscore_ace_adjusted == dealer.handscore_ace_adjusted:
             self.draw(player)
-        if player.handscore < dealer.handscore:
+        if player.handscore_ace_adjusted < dealer.handscore_ace_adjusted:
             self.playerlose()
 
     def resetplayers(self):
         for player in self.players:
-            player.hand = []
-            player.handscore = 0
-            player.isbusted = False
-            player.ace_count = 0
+            player.reset()
         self.playerbet = 0
 
     def playagain(self, player):
@@ -188,50 +201,52 @@ class Game:
             else:
                 print("That was not a valid input")
 
+    def play(self):
+        print("\n---------- Welcome to Blackjack ----------\n")
+        self.deck = Deck()
+        player = Human(100)
+        dealer = Dealer()
+        self.players = [player, dealer]
+        self.deck.fill_deck()
+        self.deck.shuffle()
+        running = True
+        while running:
+            if self.players[0].chips == 0:
+                print("You are flat broke! It's time to leave the table.")
+                input("Press any key to walk away in shame.")
+                break
+            self.playerbet = player.place_bet()
+            self.deal()
+            dealer.show_hand()
+            player.show_hand()
+            while self.players_turn:
+                self.playerchoice(player)
+            if not player.isbusted:
+                dealer.show_hand(True)
+                while not self.players_turn:
+                    if dealer.handscore_ace_adjusted < 17:
+                        time.sleep(1)
+                        print("\nDealer Hits")
+                        self.hit(dealer)
+                        time.sleep(1)
+                    if dealer.handscore_ace_adjusted >= 17 and not dealer.isbusted:
+                        print(f"\nDealer Sticks with hand of {str(dealer.handscore_ace_adjusted)}\n")
+                        break
+                    if dealer.isbusted:
+                        self.playerwin(player)
+                        break
+                if not dealer.isbusted:
+                    self.comparescores(player, dealer)
+            again = self.playagain(player)
+            if not again:
+                running = False
+            self.players_turn = True
+            self.resetplayers()
+
 
 def main():
-    print("\n---------- Welcome to Blackjack ----------\n")
-    newdeck = Deck()
-    newdeck.fill_deck()
-    newdeck.shuffle()
-    player = Player(100)
-    dealer = Dealer()
-    players = [player, dealer]
-    game = Game(players, newdeck)
-
-    running = True
-    while running:
-        if player.chips == 0:
-            print("You are flat broke! It's time to leave the table.")
-            input("Press any key to walk away in shame.")
-            break
-        game.playerbet = player.place_bet()
-        game.deal()
-        dealer.show_hand()
-        player.show_hand()
-        while game.players_turn:
-            game.playerchoice(player)
-        if not player.isbusted:
-            dealer.show_hand(True)
-            while not game.players_turn:
-                if dealer.handscore < 17:
-                    time.sleep(1)
-                    print("\nDealer Hits")
-                    game.hit(dealer)
-                    time.sleep(1)
-                if dealer.handscore >= 17 and not dealer.isbusted:
-                    print(f"\nDealer Sticks with hand of {str(dealer.handscore)}\n")
-                    break
-                if dealer.isbusted:
-                    game.playerwin(player)
-                    break
-            if not dealer.isbusted:
-                game.comparescores(player, dealer)
-        again = game.playagain(player)
-        if not again:
-            running = False
-        game.players_turn = True
-        game.resetplayers()
+    game = Game()
+    game.play()
 
 
 if __name__ == "__main__":
